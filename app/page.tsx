@@ -201,8 +201,8 @@ export default function Home() {
     const startTime = Date.now();
 
     try {
-      // 원본 이미지를 base64로
-      const imgRes = await fetch(outputUrl);
+      // 원본 이미지를 base64로 (프록시 경유)
+      const imgRes = await fetch(`/api/proxy?url=${encodeURIComponent(outputUrl)}`);
       const imgBlob = await imgRes.blob();
       const originalBase64 = await new Promise<string>(resolve => {
         const reader = new FileReader();
