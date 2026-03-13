@@ -9,13 +9,12 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
 
-  // 1. Create prediction
+  // prediction 생성만 하고 ID 반환 (폴링은 프론트에서)
   const createRes = await fetch('https://api.replicate.com/v1/models/google/nano-banana-2/predictions', {
     method: 'POST',
     headers: {
       'Authorization': `Token ${apiToken}`,
       'Content-Type': 'application/json',
-      'Prefer': 'wait=60',
     },
     body: JSON.stringify({ input: body }),
   });
@@ -25,20 +24,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: err.detail || `Replicate 오류: HTTP ${createRes.status}` }, { status: createRes.status });
   }
 
-  let prediction = await createRes.json();
-
-  // 2. Poll until done
-  while (!['succeeded', 'failed', 'canceled'].includes(prediction.status)) {
-    await new Promise(r => setTimeout(r, 1500));
-    const pollRes = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
-      headers: { 'Authorization': `Token ${apiToken}` },
-    });
-    prediction = await pollRes.json();
-  }
-
-  if (prediction.status !== 'succeeded') {
-    return NextResponse.json({ error: prediction.error || '생성 실패' }, { status: 500 });
-  }
-
-  return NextResponse.json({ output: prediction.output });
+  const prediction = await createRes.json();
+  return NextResponse.json({ id: prediction.id, status: prediction.status });
 }

@@ -99,13 +99,31 @@ export default function Home() {
     if (uploadedImages.length > 0) input.image_input = uploadedImages.map(img => img.base64);
 
     try {
+      // 1. prediction 생성
       const res = await fetch('/api/generate', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      setOutputUrl(data.output);
+
+      const predictionId = data.id;
+
+      // 2. 프론트에서 폴링
+      let output = null;
+      while (!output) {
+        await new Promise(r => setTimeout(r, 2000));
+        const pollRes = await fetch(`/api/poll?id=${predictionId}`);
+        const pollData = await pollRes.json();
+
+        if (pollData.status === 'succeeded') {
+          output = pollData.output;
+        } else if (pollData.status === 'failed' || pollData.status === 'canceled') {
+          throw new Error(pollData.error || '생성 실패');
+        }
+      }
+
+      setOutputUrl(output);
       setElapsed(((Date.now() - startTime) / 1000).toFixed(1));
       setStatus('done'); setStatusText('생성 완료!');
     } catch (err: unknown) {
