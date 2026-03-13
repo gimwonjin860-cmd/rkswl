@@ -210,22 +210,44 @@ export default function Home() {
         reader.readAsDataURL(imgBlob);
       });
 
-      // 마스크 base64
-      const canvas = canvasRef.current!;
-      const maskBase64 = canvas.toDataURL('image/png');
+      // 마스크 생성: 칠한 부분=흰색, 나머지=검정
+      const srcCanvas = canvasRef.current!;
+      const maskCanvas = document.createElement('canvas');
+      maskCanvas.width = srcCanvas.width;
+      maskCanvas.height = srcCanvas.height;
+      const mctx = maskCanvas.getContext('2d')!;
+      // 검정 배경
+      mctx.fillStyle = 'black';
+      mctx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
+      // 칠한 부분 흰색으로
+      if (hasMask) {
+        mctx.globalCompositeOperation = 'source-over';
+        // 원본 스트로크를 흰색으로 변환
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = srcCanvas.width;
+        tempCanvas.height = srcCanvas.height;
+        const tctx = tempCanvas.getContext('2d')!;
+        tctx.drawImage(srcCanvas, 0, 0);
+        const imageData = tctx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+        const data = imageData.data;
+        for (let i = 0; i < data.length; i += 4) {
+          if (data[i + 3] > 10) { // 알파값 있으면 흰색
+            data[i] = 255; data[i+1] = 255; data[i+2] = 255; data[i+3] = 255;
+          }
+        }
+        tctx.putImageData(imageData, 0, 0);
+        mctx.drawImage(tempCanvas, 0, 0);
+      }
+      const maskBase64 = maskCanvas.toDataURL('image/png');
 
-      const imageInputs = [originalBase64];
-      if (hasMask) imageInputs.push(maskBase64);
-
+      // flux-fill-pro: image + mask + prompt
       const input: Record<string, unknown> = {
         prompt: editPrompt,
-        image_input: imageInputs,
-        aspect_ratio: aspectRatio,
-        resolution,
-        output_format: outputFormat,
+        image: originalBase64,
+        mask: maskBase64,
       };
 
-      const res = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
+      const res = await fetch('/api/edit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
       const output = await pollPrediction(data.id, startTime);
