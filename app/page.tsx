@@ -109,10 +109,13 @@ export default function Home() {
 
       const predictionId = data.id;
 
-      // 2. 프론트에서 폴링
+      // 2. 프론트에서 폴링 (최대 10분)
       let output = null;
-      while (!output) {
-        await new Promise(r => setTimeout(r, 2000));
+      const maxAttempts = 200;
+      let attempts = 0;
+      while (!output && attempts < maxAttempts) {
+        await new Promise(r => setTimeout(r, 3000));
+        attempts++;
         const pollRes = await fetch(`/api/poll?id=${predictionId}`);
         const pollData = await pollRes.json();
 
@@ -122,6 +125,7 @@ export default function Home() {
           throw new Error(pollData.error || '생성 실패');
         }
       }
+      if (!output) throw new Error('생성 시간 초과 (10분). 해상도를 낮춰보세요.');
 
       setOutputUrl(output);
       setElapsed(((Date.now() - startTime) / 1000).toFixed(1));
